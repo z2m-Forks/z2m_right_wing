@@ -1,0 +1,58 @@
+name: Sync upstream fork (preserve 2 files)
+
+on:
+  schedule:
+    # Ежедневно 01:00 UTC (04:00 по Киеву летом)
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream and fetch
+        run: |
+          git remote add upstream https://github.com/zigbee2mqtt/hassio-zigbee2mqtt.git || true
+          git fetch upstream --prune
+
+      - name: Switch to master and save current HEAD
+        id: save_sha
+        run: |
+          git checkout master
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Merge upstream/master -> master
+        run: |
+          # Автомердж; при коллизиях по умолчанию берём сторону upstream ("theirs")
+          git merge --no-edit -X theirs upstream/master || true
+
+      - name: Restore our versions of protected files
+        run: |
+          git checkout ${{ steps.save_sha.outputs.sha }} -- repository.json || true
+          git checkout ${{ steps.save_sha.outputs.sha }} -- zigbee2mqtt/icon.png || true
+
+      - name: Commit if anything changed
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "Sync upstream -> master; preserve repository.json and zigbee2mqtt/icon.png"
+          else
+            echo "No changes to commit."
+          fi
+
+      - name: Push
+        run: |
+          git push origin HEAD:master
