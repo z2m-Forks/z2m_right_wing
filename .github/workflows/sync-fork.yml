@@ -16,6 +16,7 @@ jobs:
       - name: Checkout fork (full history)
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.PAT_TOKEN }}
           fetch-depth: 0
 
       - name: Git identity
